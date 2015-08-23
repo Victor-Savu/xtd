@@ -1,4 +1,7 @@
-
+include_directories(..)
+set(TEST_SRC
+	main.cc
+	optional.cc)
 # \Begin: code imported from http://stackoverflow.com/questions/9689183/cmake-googletest/9695234#9695234 (Thanks, Fraser!)
 # Enable ExternalProject CMake module
 include(ExternalProject)
@@ -39,7 +42,7 @@ if(MSVC_VERSION EQUAL 1700)
 endif()
 
 # Add test executable target
-add_executable(MainTest main.cc)
+add_executable(MainTest ${TEST_SRC})
 
 # Create dependency of MainTest on googletest
 add_dependencies(MainTest googletest)
