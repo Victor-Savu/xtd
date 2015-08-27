@@ -19,7 +19,7 @@ class optional {
     }
   }
 
-  optional& operator=(optional opt) noexcept { swap(*this, opt); }
+  optional& operator=(optional opt) noexcept { swap(*this, opt); return *this; }
 
   friend void swap(optional& a, optional& b) noexcept {
     if (a.some || b.some) {
