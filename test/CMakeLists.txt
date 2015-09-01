@@ -1,7 +1,8 @@
 include_directories(..)
 set(TEST_SRC
 	main.cc
-	optional.cc)
+	optional.cc
+)
 # \Begin: code imported from http://stackoverflow.com/questions/9689183/cmake-googletest/9695234#9695234 (Thanks, Fraser!)
 # Enable ExternalProject CMake module
 include(ExternalProject)
@@ -17,7 +18,9 @@ set_directory_properties(PROPERTIES EP_PREFIX ${CMAKE_BINARY_DIR}/ThirdParty)
 # Add gtest
 ExternalProject_Add(
     googletest
-    GIT_REPOSITORY https://github.com/google/googletest.git
+    SOURCE_DIR ${GOOGLE_TEST_PATH}/googletest
+    # This no longer works because the googletest directory is not at the root of the repo
+    #GIT_REPOSITORY https://github.com/google/googletest.git
     TIMEOUT 10
     # Force separate output paths for debug and release builds to allow easy
     # identification of correct lib in subsequent TARGET_LINK_LIBRARIES commands
@@ -61,3 +64,5 @@ target_link_libraries(
     optimized ${binary_dir}/ReleaseLibs/${CMAKE_FIND_LIBRARY_PREFIXES}gtest${Suffix}
     ${Pthread})
 # \End: code imported from http://stackoverflow.com/questions/9689183/cmake-googletest/9695234#9695234 (Thanks, Fraser!)
+
+add_test(NAME UnitTest COMMAND MainTest)
