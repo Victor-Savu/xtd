@@ -2,6 +2,7 @@ include_directories(..)
 set(TEST_SRC
 	main.cc
 	optional.cc
+	vector.cc
 )
 # \Begin: code imported from http://stackoverflow.com/questions/9689183/cmake-googletest/9695234#9695234 (Thanks, Fraser!)
 # Enable ExternalProject CMake module
