@@ -1,5 +1,6 @@
 #include <iostream>
 #include <string>
+#include <type_traits>
 
 namespace xtd {
 struct none {};
@@ -11,7 +12,9 @@ class optional {
 
  public:
   optional() : some{false} {}
-  explicit optional(T t) : some{true} { new (&val) T(std::move(t)); }
+
+  template<typename... Args>
+  explicit optional(Args&&... t) : some{true} { new (&val) T(std::forward<Args>(t)...); }
 
   optional(optional const& opt) : some{opt.some} {
     if (some) {
@@ -19,7 +22,10 @@ class optional {
     }
   }
 
-  optional& operator=(optional opt) noexcept { swap(*this, opt); return *this; }
+  optional& operator=(optional opt) noexcept {
+    swap(*this, opt);
+    return *this;
+  }
 
   friend void swap(optional& a, optional& b) noexcept {
     if (a.some || b.some) {
@@ -38,29 +44,31 @@ class optional {
   }
 
   template <typename OnSome, typename OnNone>
-  void match(OnSome&& on_some, OnNone&& on_none) const {
+  void match(OnSome on_some, OnNone on_none) const {
     (some) ? on_some(*reinterpret_cast<T const*>(&val)) : on_none();
   }
 
   template <typename OnSome, typename OnNone>
-  auto match(OnSome&& on_some, OnNone&& on_none) const {
+  auto match(OnSome on_some, OnNone on_none) const {
     return (some) ? on_some(*reinterpret_cast<T const*>(&val)) : on_none();
   }
 
   template <typename OnSome, typename OnNone>
-  auto match(OnSome&& on_some, OnNone&& on_none) {
+  auto match(OnSome on_some, OnNone on_none) {
     return (some) ? on_some(*reinterpret_cast<T*>(&val)) : on_none();
   }
 
   template <typename Map>
-  auto map(Map&& mapper) {
-    using Ret = typename std::result_of<Map(T)>::type;
-    return (some) ? optional<Ret>{mapper(*reinterpret_cast<T*>(&val))} : optional<Ret>{none{}};
+  auto map(Map mapper) {
+    using Ret = decltype(mapper(*reinterpret_cast<T*>(&val)));
+    return (some) ? optional<Ret>{mapper(*reinterpret_cast<T*>(&val))}
+                  : optional<Ret>{none{}};
   }
 };
 
 template <typename T>
-auto some(T&& t) -> optional<std::remove_cv_t<std::remove_reference_t<std::remove_cv_t<T>>>> {
-  return optional<std::remove_cv_t<std::remove_reference_t<std::remove_cv_t<T>>>>(std::forward<T&&>(t));
+constexpr auto some(T&& t) {
+  using ds_t = typename std::__decay_and_strip<T>::__type;
+  return optional<ds_t>(std::forward<T>(t));
 }
 }
