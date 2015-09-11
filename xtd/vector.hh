@@ -122,7 +122,7 @@ class vector {
   }
 
   template <typename Vector>
-  friend auto& at(Vector& v, size_t p) {
+  static auto& at(Vector& v, size_t p) {
     size_t elm = p & (v.segmentCapacity() - 1);
     size_t pos = p >> N;
 
