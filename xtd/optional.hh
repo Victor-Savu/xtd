@@ -68,7 +68,14 @@ class optional {
 
 template <typename T>
 constexpr auto some(T&& t) {
-  using ds_t = typename std::__decay_and_strip<T>::__type;
+  using ds_t = typename std::decay<T>::type;
   return optional<ds_t>(std::forward<T>(t));
 }
+
+template <typename T>
+constexpr auto opt(bool cond, T&& t) {
+  using ds_t = typename std::decay<T>::type;
+  return cond ? optional<ds_t>(std::forward<T>(t)) : optional<ds_t>(none{});
+}
+
 }
