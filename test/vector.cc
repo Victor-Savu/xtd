@@ -43,6 +43,23 @@ TEST(vector, back) {
       []() {
         return ADD_FAILURE() << "There should be something at the back.";
       });
+
+  auto const& cv = v;
+  last = v.back().map([](auto& v) -> int { return v; });
+  auto last_cv = cv.back().map([](auto& v) -> int { return v; });
+  last.match(
+      [&last_cv](auto& v) {
+        last_cv.match([&v](auto& u) { int V{v}, U{u}; EXPECT_EQ(V, U); },
+                     []() {
+                       ADD_FAILURE()
+                           << "There should be something at the const back.";
+                     });
+      },
+      []() {
+        return ADD_FAILURE() << "There should be something at the back.";
+      });
+
+
 }
 
 TEST(vector, empty) {
