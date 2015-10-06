@@ -13,8 +13,11 @@ class optional {
  public:
   optional() : some{false} {}
 
-  template<typename... Args>
-  explicit optional(Args&&... t) : some{true} { new (&val) T(std::forward<Args>(t)...); }
+  template <typename... Args>
+  explicit optional(Args&&... t)
+      : some{true} {
+    new (&val) T(std::forward<Args>(t)...);
+  }
 
   optional(optional const& opt) : some{opt.some} {
     if (some) {
@@ -43,9 +46,17 @@ class optional {
     }
   }
 
-  template <typename OnSome, typename OnNone>
-  void match(OnSome on_some, OnNone on_none) const {
-    (some) ? on_some(*reinterpret_cast<T const*>(&val)) : on_none();
+  template <typename U>
+  bool operator==(optional<U> const& other) const {
+    return match(
+        [&other, this](T const& t) {
+          return other.match([this, &t](U const& u) { return u == t; },
+                             []() { return false; });
+        },
+        [&other]() {
+          return other.match([](U const&) { return false; },
+                             []() { return true; });
+        });
   }
 
   template <typename OnSome, typename OnNone>
@@ -53,15 +64,10 @@ class optional {
     return (some) ? on_some(*reinterpret_cast<T const*>(&val)) : on_none();
   }
 
-  template <typename OnSome, typename OnNone>
-  auto match(OnSome on_some, OnNone on_none) {
-    return (some) ? on_some(*reinterpret_cast<T*>(&val)) : on_none();
-  }
-
   template <typename Map>
-  auto map(Map mapper) {
-    using Ret = decltype(mapper(*reinterpret_cast<T*>(&val)));
-    return (some) ? optional<Ret>{mapper(*reinterpret_cast<T*>(&val))}
+  auto map(Map mapper) const {
+    using Ret = decltype(mapper(*reinterpret_cast<T const*>(&val)));
+    return (some) ? optional<Ret>{mapper(*reinterpret_cast<T const*>(&val))}
                   : optional<Ret>{none{}};
   }
 };
@@ -77,5 +83,4 @@ constexpr auto opt(bool cond, T&& t) {
   using ds_t = typename std::decay<T>::type;
   return cond ? optional<ds_t>(std::forward<T>(t)) : optional<ds_t>(none{});
 }
-
 }

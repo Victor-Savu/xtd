@@ -10,6 +10,10 @@ TEST(optional, some) {
   xtd::optional<xtd::optional<std::string>> not_event_that;
 }
 
+TEST(optional, equality) {
+  EXPECT_EQ(xtd::some(10), xtd::some(10));
+}
+
 TEST(optional, match) {
   xtd::optional<int> surely_ten{10};
   xtd::optional<int> not_at_all;
