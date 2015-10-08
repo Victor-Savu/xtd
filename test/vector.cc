@@ -13,9 +13,9 @@ TEST(vector, push) {
 TEST(vector, at) {
   xtd::vector<int> v;
   v.push(10).push(20).push(30);
-  EXPECT_EQ(v[0], 10);
-  EXPECT_EQ(v[1], 20);
-  EXPECT_EQ(v[2], 30);
+  EXPECT_EQ(v[0], xtd::some(10));
+  EXPECT_EQ(v[1], xtd::some(20));
+  EXPECT_EQ(v[2], xtd::some(30));
 }
 
 TEST(vector, pop) {

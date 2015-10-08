@@ -115,41 +115,45 @@ class vector {
   }
 
   template <typename Vector>
-  static auto& at(Vector& v, size_t p) {
-    size_t elm = p & (v.segmentCapacity() - 1);
-    size_t pos = p >> N;
+  static auto at(Vector& v, size_t p) {
+    auto unsafe_at = [](Vector& v, size_t p) {
+      size_t elm = p & (v.segmentCapacity() - 1);
+      size_t pos = p >> N;
 
-    if (pos == 0) return v.m_data[0][0][elm];
-    if (pos == 1) return v.m_data[1][0][elm];
-    if (pos == 2) return v.m_data[1][1][elm];
+      if (pos == 0) return std::ref(v.m_data[0][0][elm]);
+      if (pos == 1) return std::ref(v.m_data[1][0][elm]);
+      if (pos == 2) return std::ref(v.m_data[1][1][elm]);
 
-    pos += 1;
-    // the number of the superblock
-    uint64_t k;
-    __asm__("\tbsr %1, %0\n" : "=r"(k) : "r"(pos));
+      pos += 1;
+      // the number of the superblock
+      uint64_t k;
+      __asm__("\tbsr %1, %0\n" : "=r"(k) : "r"(pos));
 
-    const uint64_t kdiv2 = k >> 1;
-    const uint64_t oneShlKdiv2 = (1 << kdiv2);
-    const uint64_t notKdiv2 = oneShlKdiv2 - 1;
+      const uint64_t kdiv2 = k >> 1;
+      const uint64_t oneShlKdiv2 = (1 << kdiv2);
+      const uint64_t notKdiv2 = oneShlKdiv2 - 1;
 
-    // the first floor(k/2) bits after the most significant bit in k
-    const uint64_t mask_b = (notKdiv2 << kdiv2) << (k & 1);
+      // the first floor(k/2) bits after the most significant bit in k
+      const uint64_t mask_b = (notKdiv2 << kdiv2) << (k & 1);
 
-    // the least significant ceil(k/2) bits in k
-    const uint64_t mask_seg = (oneShlKdiv2 << (k & 1)) - 1;
+      // the least significant ceil(k/2) bits in k
+      const uint64_t mask_seg = (oneShlKdiv2 << (k & 1)) - 1;
 
-    // the index of the data block in the k-th superblock
-    const uint64_t b = ((pos & mask_b) >> kdiv2) >> (k & 1);
+      // the index of the data block in the k-th superblock
+      const uint64_t b = ((pos & mask_b) >> kdiv2) >> (k & 1);
 
-    // the index of the data segment in the b-th data block
-    const uint64_t seg = pos & mask_seg;
+      // the index of the data segment in the b-th data block
+      const uint64_t seg = pos & mask_seg;
 
-    return v.m_data[(notKdiv2 << 1) + (k & 1) * oneShlKdiv2 + b][seg][elm];
+      return std::ref(v.m_data[(notKdiv2 << 1) + (k & 1) * oneShlKdiv2 + b][seg][elm]);
+    };
+
+    return xtd::opt(p < v.size(), unsafe_at(v, p));
   }
 
-  T& operator[](size_t p) { return at(*this, p); }
+  auto operator[](size_t p) { return at(*this, p); }
 
-  T const& operator[](size_t p) const { return at(*this, p); }
+  auto operator[](size_t p) const { return at(*this, p); }
 
   template <typename Vector>
   static auto back(Vector& v) {
@@ -161,7 +165,7 @@ class vector {
 
   auto back() const { return back(*this); }
 
-  bool empty() const { return size() == 0; }
+  bool empty() const { return m_n == 0; }
 
   size_t size() const { return (m_n) ? (((m_n - 1) << N) + m_oseg) : (0); }
 
