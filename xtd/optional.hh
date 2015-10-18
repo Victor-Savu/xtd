@@ -10,28 +10,69 @@ class optional {
   bool some{false};
   std::aligned_storage_t<sizeof(T), alignof(T)> val;
 
- public:
-  optional() : some{false} {}
+  T& asT() { return *reinterpret_cast<T*>(&val); }
+  T const& asT() const { return *reinterpret_cast<T const*>(&val); }
 
-  template <typename... Args>
-  explicit optional(Args&&... t)
+ public:
+  optional() = default;
+
+  template <typename Head, typename... Args>
+  explicit optional(Head&& h, Args&&... t)
       : some{true} {
-    new (&val) T(std::forward<Args>(t)...);
+    new (&val) T{std::forward<Head>(h), std::forward<Args>(t)...};
   }
 
-  optional(optional const& opt) : some{opt.some} {
+  optional(optional&& other) : some(other.some) {
     if (some) {
-      val = opt.val;
+      static_assert(std::is_same<T&&, decltype(std::move(other.asT()))>::value,
+                    "Buba");
+      new (&val) T{std::move(other.asT())};
+    }
+    other.some = false;
+  }
+
+  optional(optional const& other) : some(other.some) {
+    if (some) {
+      new (&val) T{other.asT()};
     }
   }
 
-  optional& operator=(optional opt) noexcept {
-    swap(*this, opt);
+  optional(optional& other) : optional{static_cast<optional const&>(other)} {}
+
+  optional& operator=(optional const& other) {
+    if (this != &other) {
+      if (other.some)
+        if (some)
+          asT() = other.asT();
+        else
+          new (&val) T{other.asT()};
+      else if (some)
+        asT().~T();
+      some = other.some;
+    }
+    return *this;
+  }
+
+  optional& operator=(optional&& other) {
+    if (this != &other) {
+      if (other.some) {
+        if (some)
+          asT() = std::move(other.asT());
+        else
+          new (&val) T{std::move(other.asT())};
+        other.asT().~T();
+      } else if (some) {
+        asT().~T();
+      }
+
+      some = other.some;
+      other.some = false;
+    }
     return *this;
   }
 
   friend void swap(optional& a, optional& b) noexcept {
-    if (a.some || b.some) {
+    if (&a != &b) {
       using std::swap;
       swap(a.val, b.val);
       swap(a.some, b.some);
@@ -42,7 +83,7 @@ class optional {
 
   ~optional() {
     if (some) {
-      reinterpret_cast<T*>(&val)->~T();
+      asT().~T();
     }
   }
 
@@ -61,14 +102,13 @@ class optional {
 
   template <typename OnSome, typename OnNone>
   auto match(OnSome on_some, OnNone on_none) const {
-    return (some) ? on_some(*reinterpret_cast<T const*>(&val)) : on_none();
+    return (some) ? on_some(asT()) : on_none();
   }
 
   template <typename Map>
   auto map(Map mapper) const {
-    using Ret = decltype(mapper(*reinterpret_cast<T const*>(&val)));
-    return (some) ? optional<Ret>{mapper(*reinterpret_cast<T const*>(&val))}
-                  : optional<Ret>{none{}};
+    using Ret = decltype(mapper(asT()));
+    return (some) ? optional<Ret>{mapper(asT())} : optional<Ret>{none{}};
   }
 };
 
