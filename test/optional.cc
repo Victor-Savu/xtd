@@ -46,6 +46,14 @@ TEST(optional, match) {
   EXPECT_EQ(message, "We'll always have Paris.");
 }
 
+TEST(optional, mutating_match) {
+  auto about_ten = xtd::some(10);
+  about_ten.match([](auto& val) { ++val; }, []() {});
+  about_ten.match(
+      [](auto const& val) { EXPECT_EQ(11, val); },
+      []() { ADD_FAILURE() << "Match should not change availability."; });
+}
+
 TEST(optional, map) {
   using namespace std::literals::string_literals;
 

@@ -21,20 +21,20 @@ TEST(vector, at) {
 TEST(vector, pop) {
   xtd::vector<int> v;
   v.push(10).pop().match(
-      [](auto& v) { EXPECT_EQ(v, 10); },
+      [](auto const& v) { EXPECT_EQ(v, 10); },
       []() { ADD_FAILURE() << "The vector should not be empty!"; });
 }
 
 TEST(vector, back) {
   xtd::vector<int> v;
   v.push(10).push(12);
-  v.back().match([](auto& v) { EXPECT_EQ(v, 12); },
+  v.back().match([](auto const& v) { EXPECT_EQ(v, 12); },
                  []() { ADD_FAILURE() << "The vector should not be empty!"; });
-  auto last = v.back().map([](auto& v) -> int { return v; });
-  auto popped = v.pop().map([](auto& v) -> int { return v; });
+  auto last = v.back().map([](auto v) -> int { return v; });
+  auto popped = v.pop().map([](auto v) -> int { return v; });
   last.match(
-      [&popped](auto& v) {
-        popped.match([&v](auto& u) { int V{v}, U{u}; EXPECT_EQ(V, U); },
+      [&popped](auto const& v) {
+        popped.match([&v](auto const& u) { EXPECT_EQ(v, u); },
                      []() {
                        ADD_FAILURE()
                            << "There should be something that was popped.";
@@ -45,11 +45,11 @@ TEST(vector, back) {
       });
 
   auto const& cv = v;
-  last = v.back().map([](auto& v) -> int { return v; });
-  auto last_cv = cv.back().map([](auto& v) -> int { return v; });
+  last = v.back().map([](auto v) -> int { return v; });
+  auto last_cv = cv.back().map([](auto v) -> int { return v; });
   last.match(
-      [&last_cv](auto& v) {
-        last_cv.match([&v](auto& u) { int V{v}, U{u}; EXPECT_EQ(V, U); },
+      [&last_cv](auto const& v) {
+        last_cv.match([&v](auto const& u) { EXPECT_EQ(v, u); },
                      []() {
                        ADD_FAILURE()
                            << "There should be something at the const back.";

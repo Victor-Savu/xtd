@@ -60,13 +60,10 @@ class optional {
           asT() = std::move(other.asT());
         else
           new (&val) T{std::move(other.asT())};
-        other.asT().~T();
       } else if (some) {
         asT().~T();
       }
-
       some = other.some;
-      other.some = false;
     }
     return *this;
   }
@@ -101,8 +98,18 @@ class optional {
   }
 
   template <typename OnSome, typename OnNone>
-  auto match(OnSome on_some, OnNone on_none) const {
+  auto match(OnSome on_some, OnNone on_none) const& {
     return (some) ? on_some(asT()) : on_none();
+  }
+
+  template <typename OnSome, typename OnNone>
+  auto match(OnSome on_some, OnNone on_none) & {
+    return (some) ? on_some(asT()) : on_none();
+  }
+
+  template <typename OnSome, typename OnNone>
+  auto match(OnSome on_some, OnNone on_none) && {
+    return (some) ? on_some(std::move(asT())) : on_none();
   }
 
   template <typename Map>
