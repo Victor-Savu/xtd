@@ -46,6 +46,109 @@ TEST(optional, match) {
   EXPECT_EQ(message, "We'll always have Paris.");
 }
 
+struct CallCounter {
+  CallCounter(int& rv_calls) : rv_calls{rv_calls} {}
+
+  template <typename... T>
+  void operator()(T&&...) & {
+    ++calls;
+  };
+
+  template <typename... T>
+  void operator()(T&&...) const & {
+    ++const_calls;
+  };
+
+  template <typename... T>
+  void operator()(T&&...) && {
+    ++rv_calls;
+  };
+
+  int calls{0};
+  mutable int const_calls{0};
+  int& rv_calls;
+};
+
+TEST(optional, capturing_match) {
+  int countSome{0};
+  int countNone{0};
+
+  CallCounter onSome{countSome};
+  CallCounter onNone{countNone};
+
+  xtd::opt(false, 3).match(onSome, onNone);
+  EXPECT_EQ(0, onSome.calls);
+  EXPECT_EQ(1, onNone.calls);
+  EXPECT_EQ(0, onSome.const_calls);
+  EXPECT_EQ(0, onNone.const_calls);
+  EXPECT_EQ(0, countSome);
+  EXPECT_EQ(0, countNone);
+
+  xtd::some(3).match(onSome, onNone);
+  EXPECT_EQ(1, onSome.calls);
+  EXPECT_EQ(1, onNone.calls);
+  EXPECT_EQ(0, onSome.const_calls);
+  EXPECT_EQ(0, onNone.const_calls);
+  EXPECT_EQ(0, countSome);
+  EXPECT_EQ(0, countNone);
+
+  CallCounter const onSomeConst{countSome};
+  CallCounter const onNoneConst{countNone};
+
+  xtd::opt(false, 3).match(onSomeConst, onNoneConst);
+  EXPECT_EQ(0, onSomeConst.calls);
+  EXPECT_EQ(0, onNoneConst.calls);
+  EXPECT_EQ(0, onSomeConst.const_calls);
+  EXPECT_EQ(1, onNoneConst.const_calls);
+  EXPECT_EQ(0, countSome);
+  EXPECT_EQ(0, countNone);
+
+  xtd::some(3).match(onSomeConst, onNoneConst);
+  EXPECT_EQ(0, onSomeConst.calls);
+  EXPECT_EQ(0, onNoneConst.calls);
+  EXPECT_EQ(1, onSomeConst.const_calls);
+  EXPECT_EQ(1, onNoneConst.const_calls);
+  EXPECT_EQ(0, countSome);
+  EXPECT_EQ(0, countNone);
+
+  xtd::opt(false, 3).match(CallCounter{countSome}, CallCounter{countNone});
+  EXPECT_EQ(0, countSome);
+  EXPECT_EQ(1, countNone);
+
+  xtd::some(3).match(CallCounter{countSome}, CallCounter{countNone});
+  EXPECT_EQ(1, countSome);
+  EXPECT_EQ(1, countNone);
+}
+
+TEST(optional, returning_match) {
+  std::vector<int> v{0, 1, 2, 3, 4, 5};
+
+  // return by &
+  ++xtd::some(2).match([&](auto&& idx) -> auto& { return v[idx]; },
+                       [&]() -> auto& { return v.front(); });
+  ++xtd::opt(false, 0).match([&](auto&& idx) -> auto& { return v[idx]; },
+                             [&]() -> auto& { return v.front(); });
+  EXPECT_EQ(1, v[0]);
+  EXPECT_EQ(1, v[1]);
+  EXPECT_EQ(3, v[2]);
+  EXPECT_EQ(3, v[3]);
+  EXPECT_EQ(4, v[4]);
+  EXPECT_EQ(5, v[5]);
+
+  // return by const&
+  auto const& copy = xtd::some(4).match([&](auto idx) { return v[idx]; },
+                                        [&]() { return v.front(); });
+  auto& ref = xtd::some(4).match([&](auto idx) -> auto const& {
+    return v[idx];
+  }, [&]() -> auto const& { return v.front(); });
+
+  ++v[4];
+
+  EXPECT_EQ(5, v[4]);
+  EXPECT_EQ(4, copy);
+  EXPECT_EQ(5, ref);
+}
+
 TEST(optional, mutating_match) {
   auto about_ten = xtd::some(10);
   about_ten.match([](auto& val) { ++val; }, []() {});

@@ -11,11 +11,12 @@ class optional {
   std::aligned_storage_t<sizeof(T), alignof(T)> val;
 
   T& asT() & { return *reinterpret_cast<T*>(&val); }
-  T const& asT() const& { return *reinterpret_cast<T const*>(&val); }
+  T const& asT() const & { return *reinterpret_cast<T const*>(&val); }
   T asT() && { return {std::move(*reinterpret_cast<T*>(&val))}; }
 
   template <typename Optional, typename OnSome, typename OnNone>
-  static auto match(Optional&& opt, OnSome&& on_some, OnNone&& on_none) {
+  static decltype(auto) match(Optional&& opt, OnSome&& on_some,
+                              OnNone&& on_none) {
     return (opt.some) ? std::forward<OnSome>(on_some)(
                             std::forward<Optional>(opt).asT())
                       : std::forward<OnNone>(on_none)();
@@ -115,25 +116,25 @@ class optional {
   }
 
   template <typename OnSome, typename OnNone>
-  auto match(OnSome&& on_some, OnNone&& on_none) const& {
+  decltype(auto) match(OnSome&& on_some, OnNone&& on_none) const & {
     return match(*this, std::forward<OnSome>(on_some),
                  std::forward<OnNone>(on_none));
   }
 
   template <typename OnSome, typename OnNone>
-  auto match(OnSome&& on_some, OnNone&& on_none) & {
+  decltype(auto) match(OnSome&& on_some, OnNone&& on_none) & {
     return match(*this, std::forward<OnSome>(on_some),
                  std::forward<OnNone>(on_none));
   }
 
   template <typename OnSome, typename OnNone>
-  auto match(OnSome&& on_some, OnNone&& on_none) && {
+  decltype(auto) match(OnSome&& on_some, OnNone&& on_none) && {
     return match(std::move(*this), std::forward<OnSome>(on_some),
                  std::forward<OnNone>(on_none));
   }
 
   template <typename Map>
-  auto map(Map&& m) const& {
+  auto map(Map&& m) const & {
     return map(*this, std::forward<Map>(m));
   }
 
