@@ -1,4 +1,5 @@
 #pragma once
+#include <iterator>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -7,6 +8,15 @@
 #include "optional.hh"
 
 namespace xtd {
+
+template<typename T, typename U>
+auto opt_ref(U&, T& t) { return std::ref(t); };
+
+template<typename T, typename U>
+auto opt_ref(U const&, T const& t) { return std::ref(t); };
+
+template<typename T, typename U>
+auto opt_ref(U&&, T&& t) { return std::move(t); };
 
 template <typename T, uint8_t N = 0>
 class vector {
@@ -86,6 +96,39 @@ class vector {
     }
   };
 
+  template <typename Vector>
+  static auto& unsafe_at(Vector& v, size_t p) {
+    size_t elm = p & (v.segmentCapacity() - 1);
+    size_t pos = p >> N;
+
+    if (pos == 0) return v.m_data[0][0][elm];
+    if (pos == 1) return v.m_data[1][0][elm];
+    if (pos == 2) return v.m_data[1][1][elm];
+
+    pos += 1;
+    // the number of the superblock
+    uint64_t k;
+    __asm__("\tbsr %1, %0\n" : "=r"(k) : "r"(pos));
+
+    const uint64_t kdiv2 = k >> 1;
+    const uint64_t oneShlKdiv2 = (1 << kdiv2);
+    const uint64_t notKdiv2 = oneShlKdiv2 - 1;
+
+    // the first floor(k/2) bits after the most significant bit in k
+    const uint64_t mask_b = (notKdiv2 << kdiv2) << (k & 1);
+
+    // the least significant ceil(k/2) bits in k
+    const uint64_t mask_seg = (oneShlKdiv2 << (k & 1)) - 1;
+
+    // the index of the data block in the k-th superblock
+    const uint64_t b = ((pos & mask_b) >> kdiv2) >> (k & 1);
+
+    // the index of the data segment in the b-th data block
+    const uint64_t seg = pos & mask_seg;
+
+    return v.m_data[(notKdiv2 << 1) + (k & 1) * oneShlKdiv2 + b][seg][elm];
+  };
+
  public:
   vector()
       : m_d{0},
@@ -115,45 +158,16 @@ class vector {
   }
 
   template <typename Vector>
-  static auto at(Vector& v, size_t p) {
-    auto unsafe_at = [](Vector& v, size_t p) {
-      size_t elm = p & (v.segmentCapacity() - 1);
-      size_t pos = p >> N;
-
-      if (pos == 0) return std::ref(v.m_data[0][0][elm]);
-      if (pos == 1) return std::ref(v.m_data[1][0][elm]);
-      if (pos == 2) return std::ref(v.m_data[1][1][elm]);
-
-      pos += 1;
-      // the number of the superblock
-      uint64_t k;
-      __asm__("\tbsr %1, %0\n" : "=r"(k) : "r"(pos));
-
-      const uint64_t kdiv2 = k >> 1;
-      const uint64_t oneShlKdiv2 = (1 << kdiv2);
-      const uint64_t notKdiv2 = oneShlKdiv2 - 1;
-
-      // the first floor(k/2) bits after the most significant bit in k
-      const uint64_t mask_b = (notKdiv2 << kdiv2) << (k & 1);
-
-      // the least significant ceil(k/2) bits in k
-      const uint64_t mask_seg = (oneShlKdiv2 << (k & 1)) - 1;
-
-      // the index of the data block in the k-th superblock
-      const uint64_t b = ((pos & mask_b) >> kdiv2) >> (k & 1);
-
-      // the index of the data segment in the b-th data block
-      const uint64_t seg = pos & mask_seg;
-
-      return std::ref(v.m_data[(notKdiv2 << 1) + (k & 1) * oneShlKdiv2 + b][seg][elm]);
-    };
-
-    return xtd::opt(p < v.size(), unsafe_at(v, p));
+  static auto at(Vector&& v, size_t p) {
+    return xtd::opt(p < v.size(),
+                  xtd::opt_ref(std::forward<Vector>(v), unsafe_at(v, p)));
   }
 
-  auto operator[](size_t p) { return at(*this, p); }
+  auto operator[](size_t p) & { return at(*this, p); }
 
-  auto operator[](size_t p) const { return at(*this, p); }
+  auto operator[](size_t p) const & { return at(*this, p); }
+
+  auto operator[](size_t p) && { return at(std::move(*this), p); }
 
   template <typename Vector>
   static auto back(Vector& v) {
@@ -183,5 +197,124 @@ class vector {
 
     return ret;
   }
+
+  constexpr T getDefaultValue() { return {}; }
+  constexpr T const getDefaultValue() const { return {}; }
+
+  template <typename Container>
+  class iterator_t
+      : public std::iterator<std::random_access_iterator_tag,
+                             decltype(Container().getDefaultValue())> {
+    using super_t = std::iterator<std::random_access_iterator_tag,
+                                  decltype(Container().getDefaultValue())>;
+    using iter_mut = vector::template iterator_t<vector>;
+    friend class vector::template iterator_t<vector const>;
+
+    size_t i{0};
+    Container* v{0};
+
+   public:
+    iterator_t() = default;
+    iterator_t(Container& v, size_t i) : v{&v}, i{i} {}
+
+    // Any iterator (over either const or mutable) can be instantiated from an
+    // iterator over mutables.
+    iterator_t(iter_mut const& other) : v{other.v}, i{other.i} {}
+
+    // EqualityComparable
+    bool operator==(iterator_t const& it) const {
+      return (i == it.i) && (v == it.v);
+    }
+
+    // InputIterator && ForwardIterator
+    bool operator!=(iterator_t const& it) const { return !(*this == it); }
+    auto& operator++() {
+      i++;
+      return *this;
+    }
+    typename super_t::reference operator*() const { return unsafe_at(*v, i); }
+
+    typename super_t::reference operator->() const {
+      return Container::unsafe_at(*v, i);
+    }
+
+    auto operator++(int) {
+      iterator_t it{*this};
+      ++(*this);
+      return it;
+    }
+
+    // bidirectional iterator
+    auto& operator--() {
+      --i;
+      return *this;
+    }
+    auto operator--(int) {
+      iterator_t it{*this};
+      --(*this);
+      return it;
+    }
+
+    // random access iterator
+    auto& operator+=(typename super_t::difference_type n) {
+      i += n;
+      return *this;
+    }
+
+    auto operator+(typename super_t::difference_type n) const {
+      iterator_t copy{*this};
+      copy += n;
+      return copy;
+    }
+
+    auto& operator-=(typename super_t::difference_type n) {
+      i -= n;
+      return *this;
+    }
+
+    auto operator-(typename super_t::difference_type n) const {
+      iterator_t copy{*this};
+      copy -= n;
+      return copy;
+    }
+
+    typename super_t::difference_type operator-(iterator_t it) const {
+      return i - it.i;
+    }
+
+    auto& operator[](typename super_t::difference_type n) const {
+      return v->at(i + n);
+    }
+
+    bool operator<(iterator_t it) const { return (*this) - it < 0; }
+
+    bool operator>(iterator_t it) const { return (*this) - it > 0; }
+
+    bool operator<=(iterator_t it) const { return (*this) - it <= 0; }
+
+    bool operator>=(iterator_t it) const { return (*this) - it >= 0; }
+
+    // output iterator
+  };
+
+  using iterator = iterator_t<vector>;
+  using const_iterator = iterator_t<vector const>;
+
+  iterator begin() { return {*this, 0}; }
+  iterator end() { return {*this, size()}; }
+
+  const_iterator begin() const { return {*this, 0}; }
+  const_iterator end() const { return {*this, size()}; }
+
+  const_iterator cbegin() const { return {*this, 0}; }
+  const_iterator cend() const { return {*this, size()}; }
 };
+}
+
+template <typename T>
+auto operator+(
+    typename std::vector<std::remove_cv_t<T>>::template iterator_t<
+        T>::difference_type n,
+    typename std::vector<std::remove_cv<T>>::template iterator_t<T> it) {
+  return it + n;
 }

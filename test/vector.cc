@@ -16,6 +16,11 @@ TEST(vector, at) {
   EXPECT_EQ(v[0], xtd::some(10));
   EXPECT_EQ(v[1], xtd::some(20));
   EXPECT_EQ(v[2], xtd::some(30));
+
+  auto genvec = []() { xtd::vector<int> v; v.push(2).push(3); return v; };
+  auto first = genvec()[0];
+  ::testing::StaticAssertTypeEq<xtd::optional<int>, decltype(first)>();
+  EXPECT_EQ(xtd::some(2), first);
 }
 
 TEST(vector, pop) {
