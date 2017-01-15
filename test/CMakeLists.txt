@@ -2,6 +2,7 @@ include_directories(..)
 set(TEST_SRC
    main.cc
    call_tracker.cc
+   iota.cc
    optional.cc
    vector.cc
    vector_iterator.cc
@@ -21,9 +22,8 @@ set_directory_properties(PROPERTIES EP_PREFIX ${CMAKE_BINARY_DIR}/ThirdParty)
 # Add gtest
 ExternalProject_Add(
     googletest
-    SOURCE_DIR ${GOOGLE_TEST_PATH}/googletest
     # This no longer works because the googletest directory is not at the root of the repo
-    #GIT_REPOSITORY https://github.com/google/googletest.git
+    GIT_REPOSITORY https://github.com/google/googletest/googletest.git
     TIMEOUT 10
     # Force separate output paths for debug and release builds to allow easy
     # identification of correct lib in subsequent TARGET_LINK_LIBRARIES commands
